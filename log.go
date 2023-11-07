@@ -13,7 +13,7 @@ const (
 )
 
 const (
-	defaultReportCaller = true
+	defaultReportCaller = false
 	defaultLevel        = levelInfo
 	defaultFormat       = formatText
 )
