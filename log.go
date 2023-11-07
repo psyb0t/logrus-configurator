@@ -14,7 +14,7 @@ const (
 
 const (
 	defaultReportCaller = true
-	defaultLevel        = levelWarn
+	defaultLevel        = levelInfo
 	defaultFormat       = formatText
 )
 
