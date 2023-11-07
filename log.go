@@ -14,8 +14,8 @@ const (
 
 const (
 	defaultReportCaller = true
-	defaultLevel        = levelDebug
-	defaultFormat       = formatJSON
+	defaultLevel        = levelWarn
+	defaultFormat       = formatText
 )
 
 type config struct {
