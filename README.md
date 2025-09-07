@@ -8,10 +8,10 @@ Welcome to `logrus-configurator`, the badass sidekick for your logging adventure
 
 ## Features
 
-- No-nonsense log level setting (trace your bugs or go full-on panic mode, we don't judge).
-- Formatting logs like a boss with JSON or text formats – keep it structured or keep it simple.
-- Caller reporting for when you need to backtrack who messed up. It's like `CSI` for your code.
-- Automated configuration using environment variables, because who has time for manual setup?
+- **No-nonsense log level setting** (trace your bugs or go full-on panic mode, we don't judge).
+- **Formatting logs like a boss** with JSON or text formats – keep it structured or keep it simple.
+- **Caller reporting** for when you need to backtrack who messed up. It's like `CSI` for your code.
+- **Automated configuration** using environment variables, because who has time for manual setup?
 - **Hook management API** for when you need custom logging destinations and advanced control.
 
 ## Usage Example

@@ -9,4 +9,4 @@ jobs:
       go_version: "1.24"
       dep_command: "make dep"
       lint_command: "make lint"
-      test_command: "make test"
+      test_command: "make test-coverage"
