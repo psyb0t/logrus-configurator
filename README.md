@@ -12,6 +12,7 @@ Welcome to `logrus-configurator`, the badass sidekick for your logging adventure
 - Formatting logs like a boss with JSON or text formats – keep it structured or keep it simple.
 - Caller reporting for when you need to backtrack who messed up. It's like `CSI` for your code.
 - Automated configuration using environment variables, because who has time for manual setup?
+- **Hook management API** for when you need custom logging destinations and advanced control.
 
 ## Usage Example
 
@@ -57,13 +58,13 @@ go run main.go
 And let the good times roll with the output:
 
 ```plaintext
-DEBU[0000]/github.com/psyb0t/logrus-configurator/log.go:28 github.com/psyb0t/logrus-configurator.config.log() logrus-configurator: level: trace, format: text, reportCaller: true
-TRAC[0000]/github.com/psyb0t/logrus-configurator/.example/main.go:9 main.main() this shit's a trace
-DEBU[0000]/github.com/psyb0t/logrus-configurator/.example/main.go:10 main.main() this shit's a debug
-INFO[0000]/github.com/psyb0t/logrus-configurator/.example/main.go:11 main.main() this shit's an info
-WARN[0000]/github.com/psyb0t/logrus-configurator/.example/main.go:12 main.main() this shit's a warn
-ERRO[0000]/github.com/psyb0t/logrus-configurator/.example/main.go:13 main.main() this shit's an error
-FATA[0000]/github.com/psyb0t/logrus-configurator/.example/main.go:14 main.main() this shit's a fatal
+time="2025-09-07T10:56:28Z" level=debug msg="logrus-configurator: level: trace, format: text, reportCaller: true" func="github.com/psyb0t/logrus-configurator.config.log()" file="log.go:30"
+time="2025-09-07T10:56:28Z" level=trace msg="this shit's a trace" func="main.main()" file="main.go:9"
+time="2025-09-07T10:56:28Z" level=debug msg="this shit's a debug" func="main.main()" file="main.go:10"
+time="2025-09-07T10:56:28Z" level=info msg="this shit's an info" func="main.main()" file="main.go:11"
+time="2025-09-07T10:56:28Z" level=warning msg="this shit's a warn" func="main.main()" file="main.go:12"
+time="2025-09-07T10:56:28Z" level=error msg="this shit's an error" func="main.main()" file="main.go:13"
+time="2025-09-07T10:56:28Z" level=fatal msg="this shit's a fatal" func="main.main()" file="main.go:14"
 exit status 1
 ```
 
@@ -84,15 +85,78 @@ go run main.go
 And enjoy the sweet sound of (almost) silence:
 
 ```plaintext
-{"level":"warning","msg":"this shit's a warn","time":"2023-11-06T21:15:49+02:00"}
-{"level":"error","msg":"this shit's an error","time":"2023-11-06T21:15:49+02:00"}
-{"level":"fatal","msg":"this shit's a fatal","time":"2023-11-06T21:15:49+02:00"}
+{"level":"warning","msg":"this shit's a warn","time":"2025-09-07T10:56:33Z"}
+{"level":"error","msg":"this shit's an error","time":"2025-09-07T10:56:33Z"}
+{"level":"fatal","msg":"this shit's a fatal","time":"2025-09-07T10:56:33Z"}
 exit status 1
 ```
 
 Whether you're in for a riot or a silent disco, `logrus-configurator` is your ticket. 🎟️ (check out all of the supported levels in [`level.go`](level.go))
 
-And that's damn it. You've just pimped your logger!
+## Advanced Hook Management 🚀
+
+Need more control over your logging destinations? Here's some badass functions for managing custom hooks:
+
+```go
+import "github.com/psyb0t/logrus-configurator"
+
+// Replace all hooks with your custom ones - go full nuclear
+logrusconfigurator.SetHooks(myDbHook, mySlackHook, myCustomHook)
+
+// Add a single hook without fucking up the existing setup
+logrusconfigurator.AddHook(myMetricsHook)
+```
+
+Perfect for when you need to:
+- Send errors to external monitoring systems
+- Log to databases or message queues  
+- Route different log levels to different destinations
+- Build complex logging pipelines
+
+The package handles stderr/stdout separation automatically, so your custom hooks play nice with the default console output.
+
+## Testing & Quality 🧪
+
+This package is tested harder than a Nokia 3310. This shit's got **96.3% test coverage** because nobody fucks around with quality here.
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage check (fails if below 90%)
+make test-coverage
+
+# Run linting
+make lint
+
+# Run everything (dependencies, linting, tests)
+make all
+```
+
+### What Gets Tested
+
+**Core Shit:**
+- ✅ Environment variable parsing and configuration
+- ✅ All log levels (trace, debug, info, warn, error, fatal, panic)
+- ✅ JSON and text formatting with caller prettification
+- ✅ Hook management and custom writers
+- ✅ Error handling for fucked up configurations
+
+**Advanced Shit:**
+- ✅ `SetHooks()` and `AddHook()` API functions
+- ✅ Caller prettification with complex function signatures
+- ✅ Custom hook writers and level filtering
+- ✅ Configuration edge cases and error scenarios
+
+**Testing Philosophy:**
+- Table-driven tests for consistency and maintainability
+- Proper `require` vs `assert` patterns for better debugging
+- 90% minimum coverage enforced in CI/CD
+- Comprehensive edge case coverage
+
+And that's damn it. You've just pimped your logger with military-grade reliability!
 
 ## Contribute
 

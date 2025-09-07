@@ -1,6 +1,8 @@
 package logrusconfigurator
 
 import (
+	"io"
+
 	"github.com/pkg/errors"
 	"github.com/psyb0t/gonfiguration"
 	"github.com/sirupsen/logrus"
@@ -52,11 +54,15 @@ func configure() error {
 		return errors.Wrap(err, "failed to set log level")
 	}
 
+	logrus.SetOutput(io.Discard)
+	logrus.SetReportCaller(c.ReportCaller)
+
 	if err := setFormat(c.Format); err != nil {
 		return errors.Wrap(err, "failed to set log format")
 	}
 
-	logrus.SetReportCaller(c.ReportCaller)
+	clearLoggerHooks(logrus.StandardLogger())
+	addLoggerDefaultHooks(logrus.StandardLogger())
 
 	c.log()
 
@@ -64,7 +70,7 @@ func configure() error {
 }
 
 func setDefaults() {
-	gonfiguration.SetDefaults(map[string]interface{}{
+	gonfiguration.SetDefaults(map[string]any{
 		configKeyLogLevel:  defaultLevel,
 		configKeyLogFormat: defaultFormat,
 		configKeyLogCaller: defaultReportCaller,

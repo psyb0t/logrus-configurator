@@ -1,6 +1,8 @@
 package logrusconfigurator
 
 import (
+	"strings"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -18,24 +20,12 @@ const (
 )
 
 func getLogrusLevel(lvl level) (logrus.Level, error) {
-	switch lvl {
-	case levelTrace:
-		return logrus.TraceLevel, nil
-	case levelDebug:
-		return logrus.DebugLevel, nil
-	case levelInfo:
-		return logrus.InfoLevel, nil
-	case levelWarn:
-		return logrus.WarnLevel, nil
-	case levelError:
-		return logrus.ErrorLevel, nil
-	case levelFatal:
-		return logrus.FatalLevel, nil
-	case levelPanic:
-		return logrus.PanicLevel, nil
-	default:
+	parsedLevel, err := logrus.ParseLevel(strings.ToLower(string(lvl)))
+	if err != nil {
 		return 0, errors.Wrap(errInvalidLogLevel, string(lvl))
 	}
+
+	return parsedLevel, nil
 }
 
 func setLevel(lvl level) error {

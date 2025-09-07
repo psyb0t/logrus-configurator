@@ -1,6 +1,10 @@
 package logrusconfigurator
 
 import (
+	"fmt"
+	"path"
+	"runtime"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -12,14 +16,25 @@ const (
 	formatText format = "text"
 )
 
-func getLogrusFormat(fmt format) (logrus.Formatter, error) { //nolint:ireturn
-	switch fmt {
+func getLogrusFormat(format format) (logrus.Formatter, error) { //nolint:ireturn
+	callerPrettyfier := func(f *runtime.Frame) (string, string) {
+		filename := path.Base(f.File)
+
+		return fmt.Sprintf("%s()", f.Function),
+			fmt.Sprintf("%s:%d", filename, f.Line)
+	}
+
+	switch format {
 	case formatJSON:
-		return &logrus.JSONFormatter{}, nil
+		return &logrus.JSONFormatter{
+			CallerPrettyfier: callerPrettyfier,
+		}, nil
 	case formatText:
-		return &logrus.TextFormatter{}, nil
+		return &logrus.TextFormatter{
+			CallerPrettyfier: callerPrettyfier,
+		}, nil
 	default:
-		return nil, errors.Wrap(errInvalidLogFormat, string(fmt))
+		return nil, errors.Wrap(errInvalidLogFormat, string(format))
 	}
 }
 

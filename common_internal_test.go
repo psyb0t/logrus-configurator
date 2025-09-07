@@ -10,6 +10,6 @@ import (
 func unsetEnvs(t *testing.T) {
 	t.Helper()
 
-	require.Nil(t, os.Unsetenv(configKeyLogLevel), "Unexpected error")
-	require.Nil(t, os.Unsetenv(configKeyLogFormat), "Unexpected error")
+	require.NoError(t, os.Unsetenv(configKeyLogLevel), "Unexpected error")
+	require.NoError(t, os.Unsetenv(configKeyLogFormat), "Unexpected error")
 }

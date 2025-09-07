@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +33,7 @@ func TestGetLogrusLevel(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tc.expected, result)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
@@ -56,10 +57,10 @@ func TestSetLevel(t *testing.T) {
 	for _, tc := range testCases {
 		err := setLevel(tc.level)
 		if tc.expectError {
-			require.NotNil(t, err, "Expected error for level: "+string(tc.level))
+			require.Error(t, err, "Expected error for level: "+string(tc.level))
 		} else {
-			require.Nil(t, err, "Unexpected error for level: "+string(tc.level))
-			require.Equal(t, tc.expectedLevel, logrus.GetLevel(), "Log level mismatch")
+			require.NoError(t, err, "Unexpected error for level: "+string(tc.level))
+			assert.Equal(t, tc.expectedLevel, logrus.GetLevel(), "Log level mismatch")
 		}
 	}
 }
