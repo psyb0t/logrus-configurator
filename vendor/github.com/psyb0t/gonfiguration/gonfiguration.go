@@ -1,71 +1,64 @@
 package gonfiguration
 
 import (
+	"fmt"
+	"maps"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
-
-	"github.com/pkg/errors"
+	"time"
 )
 
-type gonfiguration struct {
-	sync.RWMutex
-	defaults map[string]interface{}
-	envVars  map[string]string
-}
-
-func (g *gonfiguration) reset() {
-	g.Lock()
-	defer g.Unlock()
-
-	gonfig = &gonfiguration{
-		defaults: map[string]interface{}{},
-		envVars:  map[string]string{},
-	}
-}
-
 //nolint:gochecknoglobals
-var gonfig *gonfiguration
+var (
+	gonfig     *gonfiguration
+	gonfigOnce sync.Once
+)
 
 //nolint:gochecknoinits
 func init() {
-	if gonfig == nil {
+	gonfigOnce.Do(func() {
 		gonfig = &gonfiguration{
-			defaults: map[string]interface{}{},
+			defaults: map[string]any{},
 			envVars:  map[string]string{},
 		}
-	}
+	})
 }
 
-func Parse(dst interface{}) error {
+func Parse(dst any) error {
 	envVars, err := getEnvVars()
 	if err != nil {
-		return errors.Wrap(err, "wtf.. Parse can't get env vars")
+		return fmt.Errorf("failed to get env vars: %w", err)
 	}
 
 	gonfig.setEnvVars(envVars)
 
 	dstVal, err := getDstStructValue(dst)
 	if err != nil {
-		return errors.Wrap(err, "wtf.. Parse can't get dst struct val")
+		return fmt.Errorf("invalid destination: %w", err)
 	}
 
 	if err := parseDstFields(dstVal, envVars); err != nil {
-		return errors.Wrap(err, "wtf.. Parse can't parse dst fields")
+		return fmt.Errorf("failed to parse fields: %w", err)
 	}
 
 	return nil
 }
 
-func GetAllValues() map[string]interface{} {
+func MustParse(dst any) {
+	if err := Parse(dst); err != nil {
+		panic(err)
+	}
+}
+
+func GetAllValues() map[string]any {
 	defaults := gonfig.getDefaults()
 	envVars := gonfig.getEnvVars()
 
-	allValues := map[string]interface{}{}
+	allValues := map[string]any{}
 
-	for key, val := range defaults {
-		allValues[key] = val
-	}
+	maps.Copy(allValues, defaults)
 
 	for key, val := range envVars {
 		allValues[key] = val
@@ -78,8 +71,24 @@ func Reset() {
 	gonfig.reset()
 }
 
+type gonfiguration struct {
+	sync.RWMutex
+	defaults map[string]any
+	envVars  map[string]string
+}
+
+func (g *gonfiguration) reset() {
+	g.Lock()
+	defer g.Unlock()
+
+	gonfig = &gonfiguration{
+		defaults: map[string]any{},
+		envVars:  map[string]string{},
+	}
+}
+
 func parseDstFields(dstVal reflect.Value, envVars map[string]string) error {
-	for i := 0; i < dstVal.NumField(); i++ {
+	for i := range dstVal.NumField() {
 		fieldType := dstVal.Type().Field(i)
 
 		tag, ok := fieldType.Tag.Lookup("env")
@@ -87,48 +96,78 @@ func parseDstFields(dstVal reflect.Value, envVars map[string]string) error {
 			continue
 		}
 
+		key, required := parseTag(tag)
+
 		fieldValue := dstVal.Field(i)
-		if !isSupportedType(fieldValue.Kind()) {
-			return errors.New("wtf.. Type not supported")
+		if !isSupportedType(fieldValue) {
+			return ErrUnsupportedFieldType
 		}
 
-		if err := fillFieldValue(fieldValue, tag, envVars); err != nil {
-			return errors.Wrap(err, "wtf.. Parse can't fill field value")
+		if err := fillFieldValue(fieldValue, key, required, envVars); err != nil {
+			return fmt.Errorf("failed to set field value: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func fillFieldValue(fieldValue reflect.Value, tag string, envVars map[string]string) error {
-	if err := setDefaultValue(fieldValue, tag); err != nil {
-		return err // wraps the error inside the function
+func parseTag(tag string) (string, bool) {
+	parts := strings.Split(tag, ",")
+	key := strings.TrimSpace(parts[0])
+
+	for _, part := range parts[1:] {
+		if strings.TrimSpace(part) == "required" {
+			return key, true
+		}
 	}
 
-	envVal, ok := envVars[tag]
-	if !ok {
+	return key, false
+}
+
+func fillFieldValue(fieldValue reflect.Value, key string, required bool, envVars map[string]string) error {
+	hasDefault, err := setDefaultValue(fieldValue, key)
+	if err != nil {
+		return err
+	}
+
+	envVal, hasEnvVar := envVars[key]
+	if !hasEnvVar {
+		if required && !hasDefault {
+			return fmt.Errorf("field %s: %w", key, ErrRequiredFieldNotSet)
+		}
+
 		return nil
 	}
 
 	return setEnvVarValue(fieldValue, envVal)
 }
 
-func setDefaultValue(fieldValue reflect.Value, tag string) error {
-	defaultValue := gonfig.getDefault(tag)
+func setDefaultValue(fieldValue reflect.Value, key string) (bool, error) {
+	defaultValue := gonfig.getDefault(key)
 	if defaultValue == nil {
-		return nil
+		return false, nil
 	}
 
-	if reflect.TypeOf(defaultValue).Kind() != fieldValue.Kind() {
-		return errors.New("wtf.. Default value type mismatch")
+	if reflect.TypeOf(defaultValue) != fieldValue.Type() {
+		return false, ErrDefaultTypeMismatch
 	}
 
 	fieldValue.Set(reflect.ValueOf(defaultValue))
 
-	return nil
+	return true, nil
 }
 
 func setEnvVarValue(fieldValue reflect.Value, envVal string) error {
+	// Handle time.Duration specifically since it has underlying type int64
+	if fieldValue.Type() == reflect.TypeFor[time.Duration]() {
+		return setDuration(fieldValue, envVal)
+	}
+
+	// Handle []string specifically
+	if fieldValue.Type() == reflect.TypeFor[[]string]() {
+		return setStringSlice(fieldValue, envVal)
+	}
+
 	switch fieldValue.Kind() { //nolint:exhaustive
 	case reflect.String:
 		fieldValue.SetString(envVal)
@@ -141,12 +180,7 @@ func setEnvVarValue(fieldValue reflect.Value, envVal string) error {
 	case reflect.Bool:
 		return setBool(fieldValue, envVal)
 	default:
-		return errors.Wrapf(
-			ErrUnsupportedFieldType,
-			"FieldName: %s FieldType %s",
-			fieldValue.Type(),
-			fieldValue.Kind(),
-		)
+		return fmt.Errorf("FieldName: %s FieldType %s: %w", fieldValue.Type(), fieldValue.Kind(), ErrUnsupportedFieldType)
 	}
 
 	return nil
@@ -155,7 +189,7 @@ func setEnvVarValue(fieldValue reflect.Value, envVal string) error {
 func setInt(fieldValue reflect.Value, envVal string) error {
 	num, err := strconv.ParseInt(envVal, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "wtf.. Failed to parse int")
+		return fmt.Errorf("failed to parse int: %w", err)
 	}
 
 	fieldValue.SetInt(num)
@@ -166,7 +200,7 @@ func setInt(fieldValue reflect.Value, envVal string) error {
 func setUint(fieldValue reflect.Value, envVal string) error {
 	num, err := strconv.ParseUint(envVal, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "wtf.. Failed to parse uint")
+		return fmt.Errorf("failed to parse uint: %w", err)
 	}
 
 	fieldValue.SetUint(num)
@@ -177,7 +211,7 @@ func setUint(fieldValue reflect.Value, envVal string) error {
 func setFloat(fieldValue reflect.Value, envVal string) error {
 	num, err := strconv.ParseFloat(envVal, fieldValue.Type().Bits())
 	if err != nil {
-		return errors.Wrap(err, "wtf.. Failed to parse float")
+		return fmt.Errorf("failed to parse float: %w", err)
 	}
 
 	fieldValue.SetFloat(num)
@@ -188,7 +222,7 @@ func setFloat(fieldValue reflect.Value, envVal string) error {
 func setBool(fieldValue reflect.Value, envVal string) error {
 	b, err := strconv.ParseBool(envVal)
 	if err != nil {
-		return errors.Wrap(err, "wtf.. Failed to parse bool")
+		return fmt.Errorf("failed to parse bool: %w", err)
 	}
 
 	fieldValue.SetBool(b)
@@ -196,7 +230,39 @@ func setBool(fieldValue reflect.Value, envVal string) error {
 	return nil
 }
 
-func getDstStructValue(dst interface{}) (reflect.Value, error) {
+func setDuration(fieldValue reflect.Value, envVal string) error {
+	d, err := time.ParseDuration(envVal)
+	if err != nil {
+		return fmt.Errorf("failed to parse duration: %w", err)
+	}
+
+	fieldValue.Set(reflect.ValueOf(d))
+
+	return nil
+}
+
+func setStringSlice(fieldValue reflect.Value, envVal string) error {
+	if envVal == "" {
+		fieldValue.Set(reflect.ValueOf([]string{}))
+
+		return nil
+	}
+
+	parts := strings.Split(envVal, ",")
+	for i, part := range parts {
+		parts[i] = strings.TrimSpace(part)
+	}
+
+	fieldValue.Set(reflect.ValueOf(parts))
+
+	return nil
+}
+
+func getDstStructValue(dst any) (reflect.Value, error) {
+	if dst == nil {
+		return reflect.Value{}, ErrNilDestination
+	}
+
 	val := reflect.ValueOf(dst)
 	if val.Kind() != reflect.Ptr {
 		return reflect.Value{}, ErrTargetNotPointer
@@ -210,8 +276,18 @@ func getDstStructValue(dst interface{}) (reflect.Value, error) {
 	return val, nil
 }
 
-func isSupportedType(kind reflect.Kind) bool {
-	switch kind { //nolint:exhaustive
+func isSupportedType(fieldValue reflect.Value) bool {
+	// Handle time.Duration specifically
+	if fieldValue.Type() == reflect.TypeFor[time.Duration]() {
+		return true
+	}
+
+	// Handle []string specifically
+	if fieldValue.Type() == reflect.TypeFor[[]string]() {
+		return true
+	}
+
+	switch fieldValue.Kind() { //nolint:exhaustive
 	case reflect.String,
 		reflect.Int,
 		reflect.Int8,
